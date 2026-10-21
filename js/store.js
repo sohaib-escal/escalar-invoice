@@ -13,6 +13,84 @@
   var BACKUP_APP_ID = 'escalar-facturation';
   var BACKUP_VERSION = 1;
 
+  function defaultDesignations() {
+    return [
+      {
+        id: 'des_nfc_card',
+        title: 'Cartes de visite NFC personnalisées',
+        description: 'Fourniture de cartes de visite connectées avec puce NFC intégrée\nImpression quadri recto/verso haute définition\nConfiguration du profil numérique NFC Maroc et QR code de secours inclus',
+        price: '120',
+        qty: '10',
+        taxRate: 20
+      },
+      {
+        id: 'des_google_review',
+        title: 'Plaque connectée Google Avis NFC',
+        description: 'Support de comptoir en plexiglas premium avec puce NFC & QR code\nLien direct vers votre fiche Google My Business pour collecte d’avis clients\nFormat compact, résistant aux UV et aux rayures',
+        price: '350',
+        qty: '1',
+        taxRate: 20
+      },
+      {
+        id: 'des_graphism',
+        title: 'Création graphique & Maquette BAT',
+        description: 'Conception graphique personnalisée selon votre charte\nDéclinaison des éléments visuels et préparation des fichiers d’impression haute définition',
+        price: '250',
+        qty: '1',
+        taxRate: 20
+      },
+      {
+        id: 'des_subscription',
+        title: 'Abonnement annuel plateforme NFC Maroc',
+        description: 'Hébergement du profil dynamique, modification illimitée des coordonnées et accès aux statistiques de scans en temps réel',
+        price: '300',
+        qty: '1',
+        taxRate: 20
+      },
+      {
+        id: 'des_delivery',
+        title: 'Frais de livraison express',
+        description: 'Expédition sécurisée et livraison express à l’adresse convenue partout au Maroc',
+        price: '50',
+        qty: '1',
+        taxRate: 20
+      }
+    ];
+  }
+
+  function defaultQuickTexts() {
+    return {
+      paymentTermsDevis: [
+        '50 % à la commande, solde à la livraison',
+        'Paiement comptant à la livraison',
+        '100 % à la commande',
+        'Virement bancaire sous 15 jours'
+      ],
+      paymentTermsFacture: [
+        'Paiement à réception de facture',
+        'Paiement à 30 jours fin de mois',
+        'Paiement comptant',
+        'Virement bancaire'
+      ],
+      conditionsDevis: [
+        'Prix fermes et non révisables pendant toute la durée de validité de l’offre',
+        'Délai de livraison : 5 à 7 jours ouvrables après validation du BAT',
+        'Garantie de bon fonctionnement des puces NFC : 1 an',
+        'Validation obligatoire du Bon à Tirer (BAT) avant production'
+      ],
+      conditionsFacture: [
+        'Pénalités de retard applicables conformément à la législation en vigueur',
+        'Escompte pour paiement anticipé : néant'
+      ],
+      subjects: [
+        'Fourniture de cartes de visite NFC personnalisées',
+        'Fourniture de plaques connectées Google Avis NFC',
+        'Création de supports connectés NFC & solutions digitales',
+        'Abonnement annuel plateforme NFC Maroc'
+      ]
+    };
+  }
+
   function defaultSettings() {
     return {
       company: {
@@ -49,7 +127,9 @@
         factureNotes: ''
       },
       drive: { clientId: '55803966065-amtbkjg06rgdnel0ioip4itnlmqv7g1b.apps.googleusercontent.com', rootFolderId: '', devisFolderId: '', factureFolderId: '' },
-      gemini: { apiKey: '', model: 'gemini-2.5-flash' }
+      gemini: { apiKey: '', model: 'gemini-2.5-flash' },
+      designations: defaultDesignations(),
+      quickTexts: defaultQuickTexts()
     };
   }
 
@@ -90,7 +170,14 @@
   /* ---- Paramètres ---- */
 
   function getSettings() {
-    return withDefaults(read(KEYS.settings, {}), defaultSettings());
+    var s = withDefaults(read(KEYS.settings, {}), defaultSettings());
+    if (!Array.isArray(s.designations) || s.designations.length === 0) {
+      s.designations = defaultDesignations();
+    }
+    if (!s.quickTexts || typeof s.quickTexts !== 'object') {
+      s.quickTexts = defaultQuickTexts();
+    }
+    return s;
   }
 
   function logoSrc(settings) {
@@ -198,6 +285,8 @@
 
   App.store = {
     defaultSettings: defaultSettings,
+    defaultDesignations: defaultDesignations,
+    defaultQuickTexts: defaultQuickTexts,
     getSettings: getSettings,
     saveSettings: saveSettings,
     logoSrc: logoSrc,

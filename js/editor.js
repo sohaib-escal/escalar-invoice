@@ -62,7 +62,24 @@
       return '<option value="' + s.id + '"' + (doc.status === s.id ? ' selected' : '') + '>' + s.label + '</option>';
     }).join('');
 
-    view.innerHTML =
+      var subjectChips = (settings.quickTexts && settings.quickTexts.subjects || []).map(function (s) {
+        return '<button type="button" class="chip-btn xs" data-quick-val="' + esc(s) + '" data-quick-for="subject">' + esc(s) + '</button>';
+      }).join('');
+
+      var isDevis = doc.type === 'devis';
+      var payChips = (isDevis ? (settings.quickTexts && settings.quickTexts.paymentTermsDevis || []) : (settings.quickTexts && settings.quickTexts.paymentTermsFacture || [])).map(function (p) {
+        return '<button type="button" class="chip-btn xs" data-quick-val="' + esc(p) + '" data-quick-for="paymentTerms">' + esc(p) + '</button>';
+      }).join('');
+
+      var condChips = (isDevis ? (settings.quickTexts && settings.quickTexts.conditionsDevis || []) : (settings.quickTexts && settings.quickTexts.conditionsFacture || [])).map(function (c) {
+        return '<button type="button" class="chip-btn xs" data-quick-append="' + esc(c) + '" data-quick-for="conditions">+ ' + esc(c) + '</button>';
+      }).join('');
+
+      var desChips = (settings.designations || []).map(function (d, i) {
+        return '<button type="button" class="chip-btn" data-add-des="' + i + '" title="' + esc(d.description || d.title) + '">+ ' + esc(d.title) + '</button>';
+      }).join('');
+
+      view.innerHTML =
       '<div class="ed-bar">' +
       '<div class="ed-title"><a class="btn ghost sm" href="#/">← Documents</a><h1 id="ed-title">' + esc(title()) + '</h1>' +
       '<span class="save-state" id="save-state"></span></div>' +
@@ -108,13 +125,15 @@
       input('E-mail', 'client.email', { type: 'email', hint: 'optionnel' }) +
       input('Téléphone', 'client.phone', { type: 'tel', hint: 'optionnel' }) +
       input('Objet', 'subject', { cls: 'span2', placeholder: 'ex. Fourniture de 190 cartes de visite NFC personnalisées' }) +
+      (subjectChips ? '<div class="chip-row span2" style="margin-top:-4px"><span class="muted small" style="font-weight:600">⚡ Suggestions d’objet :</span><div class="chip-list">' + subjectChips + '</div></div>' : '') +
       '</div></div>' +
 
       // Lignes
       '<div class="section"><h2>Prestations</h2>' +
+      (desChips ? '<div class="quick-chip-bar"><div class="quick-chip-title"><span>⚡ Ajouter une prestation type en 1 clic :</span><a href="#/parametres" class="muted small" style="text-decoration:none">Gérer les modèles ⚙️</a></div><div class="chip-list">' + desChips + '</div></div>' : '') +
       '<div class="lines" id="lines"></div>' +
-      '<div class="btn-row" style="margin-top:10px"><button class="btn" id="add-line">+ Ajouter une ligne</button>' +
-      '<span class="muted small">1re ligne de la description en gras · <code>**texte**</code> pour du gras · ligne sans quantité ni prix = texte seul</span></div>' +
+      '<div class="btn-row" style="margin-top:10px"><button class="btn" id="add-line">+ Ajouter une ligne vide</button>' +
+      '<span class="muted small">1re ligne en gras · <code>**texte**</code> pour du gras · sans quantité ni prix = texte seul</span></div>' +
       '</div>' +
 
       // Totaux
@@ -129,11 +148,15 @@
       '<div class="section"><h2>' + (isDevis ? 'Conditions' : 'Paiement') + '</h2><div class="grid g2">' +
       (isDevis
         ? input('Modalités de paiement', 'paymentTerms', { cls: 'span2', placeholder: 'ex. 50 % à la commande, solde à la livraison' }) +
-          textarea('Conditions', 'conditions', { cls: 'span2', rows: 3, hint: 'une par ligne' })
+          (payChips ? '<div class="chip-row span2" style="margin-top:-6px"><span class="muted small" style="font-weight:600">⚡ Exemples :</span><div class="chip-list">' + payChips + '</div></div>' : '') +
+          textarea('Conditions', 'conditions', { cls: 'span2', rows: 3, hint: 'une par ligne' }) +
+          (condChips ? '<div class="chip-row span2" style="margin-top:-6px"><span class="muted small" style="font-weight:600">⚡ Ajouter une condition :</span><div class="chip-list">' + condChips + '</div></div>' : '')
         : input('Mode de paiement', 'paymentMethod', { list: 'pay-methods', hint: 'optionnel' }) +
           input('Référence de paiement', 'paymentRef', { hint: 'optionnel' }) +
           input('Conditions de paiement', 'paymentTerms', { cls: 'span2', hint: 'optionnel', placeholder: 'ex. Paiement à 30 jours' }) +
-          textarea('Mentions complémentaires', 'conditions', { cls: 'span2', rows: 2, hint: 'une par ligne' })) +
+          (payChips ? '<div class="chip-row span2" style="margin-top:-6px"><span class="muted small" style="font-weight:600">⚡ Exemples :</span><div class="chip-list">' + payChips + '</div></div>' : '') +
+          textarea('Mentions complémentaires', 'conditions', { cls: 'span2', rows: 2, hint: 'une par ligne' }) +
+          (condChips ? '<div class="chip-row span2" style="margin-top:-6px"><span class="muted small" style="font-weight:600">⚡ Ajouter une mention :</span><div class="chip-list">' + condChips + '</div></div>' : '')) +
       input('Titre du bloc de notes', 'notesTitle', { cls: 'span2', placeholder: 'ex. Prestations incluses sans facturation' }) +
       textarea('Notes', 'notes', { cls: 'span2', rows: 3, hint: 'une par ligne' }) +
       '</div><datalist id="pay-methods">' + App.documents.PAYMENT_METHODS.map(function (m) { return '<option value="' + esc(m) + '">'; }).join('') + '</datalist></div>' +
@@ -171,9 +194,20 @@
   function renderLines() {
     var box = ui.$('#lines', view);
     var rates = App.calc.TAX_RATES;
+    var settings = App.store.getSettings();
+    var desList = settings.designations || [];
+    var desOptions = desList.length
+      ? '<option value="">📋 Remplacer par un modèle…</option>' + desList.map(function (d, di) {
+          return '<option value="' + di + '">' + esc(d.title) + '</option>';
+        }).join('')
+      : '';
+
     box.innerHTML = doc.lines.map(function (l, i) {
       return '<div class="line" data-i="' + i + '">' +
-        '<div class="line-top"><textarea rows="2" data-k="description" placeholder="Description de la prestation (plusieurs lignes possibles)">' + esc(l.description) + '</textarea>' +
+        '<div class="line-header"><span class="muted small" style="font-weight:600">Prestation ' + (i + 1) + '</span>' +
+        (desOptions ? '<select class="desc-preset-select" data-apply-des="' + i + '">' + desOptions + '</select>' : '') +
+        '</div>' +
+        '<div class="line-top"><textarea rows="2" data-k="description" placeholder="Description de la prestation (1re ligne en gras, détails dessous)">' + esc(l.description) + '</textarea>' +
         '<div class="line-tools">' +
         '<button class="btn ghost icon sm" data-a="up" title="Monter"' + (i === 0 ? ' disabled' : '') + '>↑</button>' +
         '<button class="btn ghost icon sm" data-a="down" title="Descendre"' + (i === doc.lines.length - 1 ? ' disabled' : '') + '>↓</button>' +
@@ -415,6 +449,22 @@
       refreshSoon();
     });
     form.addEventListener('change', function (e) {
+      var selDes = e.target.closest('[data-apply-des]');
+      if (selDes && selDes.value !== '') {
+        var s = App.store.getSettings();
+        var des = (s.designations || [])[Number(selDes.value)];
+        var lineIdx = Number(selDes.dataset.applyDes);
+        if (des && doc.lines[lineIdx]) {
+          doc.lines[lineIdx].description = des.description || des.title;
+          if (des.price) doc.lines[lineIdx].price = des.price;
+          if (des.qty && !doc.lines[lineIdx].qty.trim()) doc.lines[lineIdx].qty = des.qty;
+          if (des.taxRate != null) doc.lines[lineIdx].taxRate = Number(des.taxRate);
+          renderLines(); markDirty(); refresh();
+          ui.toast('Modèle appliqué à la prestation ' + (lineIdx + 1), 'ok');
+        }
+        selDes.value = '';
+        return;
+      }
       // select et cases à cocher (certains navigateurs n'émettent pas « input »)
       var t = e.target;
       if ((t.tagName === 'SELECT' || t.type === 'checkbox') && (t.dataset.f || t.dataset.k)) {
@@ -423,6 +473,60 @@
     });
 
     form.addEventListener('click', function (e) {
+      var addDes = e.target.closest('[data-add-des]');
+      if (addDes) {
+        var s = App.store.getSettings();
+        var des = (s.designations || [])[Number(addDes.dataset.addDes)];
+        if (!des) return;
+        var l = doc.lines;
+        if (l.length === 1 && !l[0].description.trim() && !l[0].price.trim()) {
+          l[0].description = des.description || des.title;
+          l[0].price = des.price || '';
+          l[0].qty = des.qty || '1';
+          l[0].taxRate = des.taxRate != null ? Number(des.taxRate) : s.defaults.taxRate;
+        } else {
+          l.push({
+            description: des.description || des.title,
+            price: des.price || '',
+            qty: des.qty || '1',
+            discount: '',
+            taxRate: des.taxRate != null ? Number(des.taxRate) : s.defaults.taxRate
+          });
+        }
+        renderLines(); markDirty(); refresh();
+        ui.toast('Prestation « ' + des.title + ' » ajoutée', 'ok');
+        return;
+      }
+
+      var qVal = e.target.closest('[data-quick-val]');
+      if (qVal) {
+        var field = qVal.dataset.quickFor;
+        var val = qVal.dataset.quickVal;
+        setPath(doc, field, val);
+        var inp = ui.$('[data-f="' + field + '"]', view);
+        if (inp) inp.value = val;
+        markDirty(); refreshSoon();
+        ui.toast('Texte appliqué', 'ok');
+        return;
+      }
+
+      var qApp = e.target.closest('[data-quick-append]');
+      if (qApp) {
+        var field = qApp.dataset.quickFor;
+        var val = qApp.dataset.quickAppend;
+        var current = getPath(doc, field) || '';
+        var next = current.trim() ? (current.trim() + '\n' + val) : val;
+        setPath(doc, field, next);
+        var inp = ui.$('[data-f="' + field + '"]', view);
+        if (inp) {
+          inp.value = next;
+          if (inp.tagName === 'TEXTAREA') autoGrow(inp);
+        }
+        markDirty(); refreshSoon();
+        ui.toast('Condition ajoutée', 'ok');
+        return;
+      }
+
       var a = e.target.closest('[data-a]');
       if (a) {
         var i = Number(a.closest('.line').dataset.i);

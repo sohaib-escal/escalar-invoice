@@ -36,11 +36,20 @@
       '<button class="btn primary" id="save-settings">Enregistrer les paramètres</button></div></div>' +
       '<div class="settings">' +
 
+      '<div>' +
       '<div class="card"><div class="section"><h2>Société émettrice</h2><div class="grid g2">' +
       COMPANY_FIELDS.map(function (f) {
         return '<label class="f' + (f[2] ? ' ' + f[2] : '') + '">' + f[1] + '<input type="text" data-c="' + f[0] + '" value="' + esc(s.company[f[0]]) + '"></label>';
       }).join('') +
       '</div></div></div>' +
+
+      '<div class="card" style="margin-top:20px"><div class="section"><h2>Désignations et prestations types</h2>' +
+      '<p class="small" style="margin-top:0">Définissez vos prestations fréquentes pour les insérer en 1 clic dans vos devis et factures.</p>' +
+      '<div class="designations-list" id="des-list-container"></div>' +
+      '<div class="btn-row" style="margin-top:14px"><button type="button" class="btn sm primary" id="btn-add-des">+ Nouvelle prestation type</button>' +
+      '<button type="button" class="btn sm ghost" id="btn-reset-des">Rétablir les modèles par défaut</button></div>' +
+      '</div></div>' +
+      '</div>' +
 
       '<div>' +
       '<div class="card"><div class="section"><h2>Logo et cachet</h2>' +
@@ -129,6 +138,66 @@
     view.addEventListener('input', function (e) { if (e.target.id === 'next-devis' || e.target.id === 'next-facture' || e.target.dataset.n) updateNextPreview(); });
     updateNextPreview();
 
+    var currentDesignations = s.designations ? util.clone(s.designations) : App.store.defaultDesignations();
+    var editingDesIndex = -1;
+
+    function renderDesList() {
+      var container = ui.$('#des-list-container', view);
+      if (!container) return;
+      var html = '';
+
+      if (editingDesIndex === 'new') {
+        html += renderDesForm({ title: '', description: '', price: '', qty: '1', taxRate: 20 }, 'new');
+      }
+
+      if (!currentDesignations.length && editingDesIndex !== 'new') {
+        html += '<div class="muted small" style="padding:14px 0;text-align:center">Aucune prestation type enregistrée.</div>';
+      } else {
+        currentDesignations.forEach(function (d, idx) {
+          if (editingDesIndex === idx) {
+            html += renderDesForm(d, idx);
+          } else {
+            html += '<div class="des-card">' +
+              '<div class="des-card-head">' +
+              '<div><span class="des-card-title">' + esc(d.title) + '</span>' +
+              '<div class="des-badges" style="margin-left:8px">' +
+              '<span class="badge">' + (d.price ? esc(d.price) + ' MAD HT' : 'Prix libre') + '</span>' +
+              '<span class="badge">TVA ' + (d.taxRate != null ? d.taxRate : 20) + ' %</span>' +
+              (d.qty ? '<span class="badge">Qté ' + esc(d.qty) + '</span>' : '') +
+              '</div></div>' +
+              '<div class="des-actions">' +
+              '<button type="button" class="btn sm ghost" data-des-edit="' + idx + '">Modifier</button>' +
+              '<button type="button" class="btn sm ghost danger" data-des-del="' + idx + '" title="Supprimer">✕</button>' +
+              '</div></div>' +
+              '<div class="des-desc">' + esc(d.description || '') + '</div>' +
+              '</div>';
+          }
+        });
+      }
+      container.innerHTML = html;
+    }
+
+    function renderDesForm(d, key) {
+      var rates = App.calc.TAX_RATES;
+      return '<div class="des-form">' +
+        '<h3 style="margin:0 0 10px;font-size:14px;font-weight:650">' + (key === 'new' ? 'Nouvelle prestation type' : 'Modifier la prestation') + '</h3>' +
+        '<div class="grid g2">' +
+        '<label class="f span2">Titre du bouton / nom court<input type="text" id="df-title" value="' + esc(d.title || '') + '" placeholder="ex. Cartes NFC standard"></label>' +
+        '<label class="f span2">Description complète (affichée sur le devis/facture)<textarea rows="3" id="df-desc" placeholder="1re ligne en gras, détails dessous">' + esc(d.description || '') + '</textarea></label>' +
+        '<label class="f">Prix unitaire HT conseillé (MAD)<input type="text" id="df-price" value="' + esc(d.price || '') + '" placeholder="ex. 120,00"></label>' +
+        '<label class="f">TVA<select id="df-tax">' + rates.map(function (r) {
+          return '<option value="' + r + '"' + (Number(d.taxRate) === r ? ' selected' : '') + '>' + r + ' %</option>';
+        }).join('') + '</select></label>' +
+        '<label class="f">Quantité par défaut<input type="text" id="df-qty" value="' + esc(d.qty || '1') + '" placeholder="1"></label>' +
+        '</div>' +
+        '<div class="btn-row" style="margin-top:12px;justify-content:flex-end">' +
+        '<button type="button" class="btn sm ghost" id="df-cancel">Annuler</button>' +
+        '<button type="button" class="btn sm primary" id="df-save" data-key="' + key + '">Enregistrer cette prestation</button>' +
+        '</div></div>';
+    }
+
+    renderDesList();
+
     var pending = { logo: s.logo, stamp: s.stampImage };
     var imgTarget = null;
     var dirty = false;
@@ -148,6 +217,7 @@
       if (!next.gemini.model) next.gemini.model = App.extract.DEFAULT_MODEL;
       next.logo = pending.logo;
       next.stampImage = pending.stamp;
+      next.designations = currentDesignations;
       return next;
     }
 
@@ -181,6 +251,74 @@
     view.addEventListener('click', function (e) {
       var b = e.target.closest('button');
       if (!b) return;
+      if (b.id === 'btn-add-des') {
+        editingDesIndex = 'new';
+        renderDesList();
+        var ti = ui.$('#df-title', view);
+        if (ti) ti.focus();
+        return;
+      }
+      if (b.dataset.desEdit != null) {
+        editingDesIndex = Number(b.dataset.desEdit);
+        renderDesList();
+        var ti = ui.$('#df-title', view);
+        if (ti) ti.focus();
+        return;
+      }
+      if (b.dataset.desDel != null) {
+        var delIdx = Number(b.dataset.desDel);
+        if (window.confirm('Supprimer cette prestation type ?')) {
+          currentDesignations.splice(delIdx, 1);
+          markDirty();
+          renderDesList();
+          ui.toast('Prestation supprimée');
+        }
+        return;
+      }
+      if (b.id === 'btn-reset-des') {
+        if (window.confirm('Rétablir toutes les prestations types par défaut d’ESCALAR MEDIA ?')) {
+          currentDesignations = App.store.defaultDesignations();
+          editingDesIndex = -1;
+          markDirty();
+          renderDesList();
+          ui.toast('Modèles par défaut rétablis', 'ok');
+        }
+        return;
+      }
+      if (b.id === 'df-cancel') {
+        editingDesIndex = -1;
+        renderDesList();
+        return;
+      }
+      if (b.id === 'df-save') {
+        var key = b.dataset.key;
+        var titleVal = (ui.$('#df-title', view).value || '').trim();
+        var descVal = (ui.$('#df-desc', view).value || '').trim();
+        var priceVal = (ui.$('#df-price', view).value || '').trim();
+        var taxVal = Number(ui.$('#df-tax', view).value) || 20;
+        var qtyVal = (ui.$('#df-qty', view).value || '').trim() || '1';
+        if (!titleVal) {
+          ui.toast('Le titre de la prestation est obligatoire.', 'err');
+          return;
+        }
+        var item = {
+          title: titleVal,
+          description: descVal || titleVal,
+          price: priceVal,
+          qty: qtyVal,
+          taxRate: taxVal
+        };
+        if (key === 'new') {
+          currentDesignations.push(item);
+        } else {
+          currentDesignations[Number(key)] = item;
+        }
+        editingDesIndex = -1;
+        markDirty();
+        renderDesList();
+        ui.toast('Prestation type « ' + titleVal + ' » enregistrée. Pensez à enregistrer les paramètres.', 'ok');
+        return;
+      }
       if (b.dataset.img) { imgTarget = b.dataset.img; ui.$('#img-file', view).value = ''; ui.$('#img-file', view).click(); }
       if (b.dataset.imgReset) { pending[b.dataset.imgReset] = null; applyImages(); }
       if (b.dataset.imgClear) { pending[b.dataset.imgClear] = ''; applyImages(); }
