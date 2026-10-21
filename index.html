@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Facturation — ESCALAR MEDIA</title>
+  <link rel="stylesheet" href="css/app.css">
+  <link rel="stylesheet" href="css/document.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#/">ESCALAR MEDIA <span>Devis &amp; factures · NFC Maroc</span></a>
+    <nav class="nav">
+      <a href="#/" data-nav="docs">Documents</a>
+      <a href="#/parametres" data-nav="settings">Paramètres</a>
+    </nav>
+  </header>
+
+  <main id="view"></main>
+  <div id="toasts" aria-live="polite"></div>
+  <input type="file" id="import-file" accept="application/json,.json" hidden>
+
+  <!-- Bibliothèque PDF (locale) et ressources embarquées -->
+  <script src="js/lib/jspdf.umd.min.js"></script>
+  <script src="js/assets/fonts.js"></script>
+  <script src="js/assets/logo.js"></script>
+  <script src="js/assets/stamp.js"></script>
+
+  <!-- Logique (sans DOM) -->
+  <script src="js/util.js"></script>
+  <script src="js/calc.js"></script>
+  <script src="js/words.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/numbering.js"></script>
+  <script src="js/documents.js"></script>
+  <script src="js/layout.js"></script>
+
+  <!-- Rendu et intégrations -->
+  <script src="js/preview.js"></script>
+  <script src="js/pdf.js"></script>
+  <script src="js/drive.js"></script>
+  <script src="js/extract.js"></script>
+
+  <!-- Interface -->
+  <script src="js/ui.js"></script>
+  <script src="js/backup.js"></script>
+  <script src="js/dashboard.js"></script>
+  <script src="js/editor.js"></script>
+  <script src="js/settings.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

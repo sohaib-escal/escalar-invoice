@@ -1,0 +1,9 @@
+{
+  "name": "escalar-facturation",
+  "version": "1.0.0",
+  "description": "Devis & factures — ESCALAR MEDIA",
+  "private": true,
+  "scripts": {
+    "test": "node -e 'global.window = {}; global.localStorage = { getItem: () => null, setItem: () => {} }; require(\"./js/util.js\"); require(\"./js/calc.js\"); require(\"./js/words.js\"); require(\"./js/store.js\"); require(\"./js/numbering.js\"); require(\"./js/documents.js\"); require(\"./tests/tests.js\"); const r = global.window.App.testResults; const failed = r.filter(x => !x.ok); if (failed.length) { console.error(\"Tests failed:\", failed); process.exit(1); } console.log(`✓ ${r.length} tests passed.`);'"
+  }
+}

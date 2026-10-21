@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>Tests — Facturation ESCALAR MEDIA</title>
+  <style>
+    body { font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 32px; color: #1c2230; background: #fff; }
+    .ok { color: #0b7a4b; } .ko { color: #b42318; font-weight: 600; }
+    li { margin: 2px 0; }
+  </style>
+</head>
+<body>
+  <h1>Tests des calculs</h1>
+  <p id="summary"></p>
+  <ul id="out"></ul>
+  <script src="../js/util.js"></script>
+  <script src="../js/calc.js"></script>
+  <script src="../js/words.js"></script>
+  <script src="../js/store.js"></script>
+  <script src="../js/numbering.js"></script>
+  <script src="../js/documents.js"></script>
+  <script src="tests.js"></script>
+  <script>
+    var r = App.testResults, failed = r.filter(function (x) { return !x.ok; });
+    document.getElementById('summary').innerHTML = '<b class="' + (failed.length ? 'ko' : 'ok') + '">' + (r.length - failed.length) + ' / ' + r.length + ' tests réussis</b>';
+    document.getElementById('out').innerHTML = r.map(function (x) {
+      return '<li class="' + (x.ok ? 'ok' : 'ko') + '">' + (x.ok ? '✓ ' : '✗ ') + x.name +
+        (x.ok ? '' : ' — obtenu ' + JSON.stringify(x.actual) + ', attendu ' + JSON.stringify(x.expected)) + '</li>';
+    }).join('');
+  </script>
+</body>
+</html>

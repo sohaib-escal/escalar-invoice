@@ -1,0 +1,43 @@
+# ------------------------------------------------------------------------------
+# ESCALAR MEDIA — Facturation
+# Configuration Apache / Anzahosting cPanel
+# ------------------------------------------------------------------------------
+
+# 1. Empêcher l'exploration des dossiers
+Options -Indexes
+
+# 2. Encodage par défaut en UTF-8
+AddDefaultCharset UTF-8
+AddCharset UTF-8 .html .css .js .json
+
+# 3. Forcer le protocole sécurisé HTTPS
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{HTTPS} !=on
+  RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+</IfModule>
+
+# 4. En-têtes de sécurité
+<IfModule mod_headers.c>
+  Header set X-Content-Type-Options "nosniff"
+  Header set X-XSS-Protection "1; mode=block"
+  Header set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+
+# 5. Compression GZIP
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/plain text/css application/javascript application/json image/svg+xml
+</IfModule>
+
+# 6. Mise en cache des ressources statiques
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresDefault "access plus 1 month"
+  ExpiresByType text/html "access plus 0 seconds"
+  ExpiresByType application/json "access plus 0 seconds"
+  ExpiresByType text/css "access plus 1 week"
+  ExpiresByType application/javascript "access plus 1 week"
+  ExpiresByType image/png "access plus 1 month"
+  ExpiresByType image/jpeg "access plus 1 month"
+  ExpiresByType image/svg+xml "access plus 1 month"
+</IfModule>
