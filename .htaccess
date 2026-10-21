@@ -10,10 +10,11 @@ Options -Indexes
 AddDefaultCharset UTF-8
 AddCharset UTF-8 .html .css .js .json
 
-# 3. Forcer le protocole sécurisé HTTPS
+# 3. Forcer le protocole sécurisé HTTPS (compatible Reverse Proxy / CDN)
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteCond %{HTTPS} !=on
+  RewriteCond %{HTTP:X-Forwarded-Proto} !https
   RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 </IfModule>
 
