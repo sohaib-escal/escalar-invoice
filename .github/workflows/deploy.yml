@@ -35,10 +35,10 @@ jobs:
       - name: Sync files via FTPS
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
-          server: ${{ secrets.FTP_SERVER }}
+          server: ${{ secrets.FTP_SERVER || 'ftp.escalarmedia.ma' }}
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
-          server-dir: ${{ secrets.FTP_SERVER_DIR || 'public_html/invoice/' }}
+          server-dir: ${{ secrets.FTP_SERVER_DIR || './' }}
           protocol: ftps
           exclude: |
             **/.git*
