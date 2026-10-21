@@ -9,7 +9,7 @@
 
   var ROLE_KEY = 'ef.role.v1';
   var PIN_KEY  = 'ef.adminPin.v1';
-  var DEFAULT_PIN = '1234';
+  var DEFAULT_PIN = '271998';
 
   /** Retourne le rôle courant : 'admin' | 'guest' | null (pas encore choisi). */
   function getRole() {
@@ -25,8 +25,13 @@
   function isGuest() { return getRole() === 'guest'; }
 
   function getPin() {
-    try { return localStorage.getItem(PIN_KEY) || DEFAULT_PIN; }
-    catch (e) { return DEFAULT_PIN; }
+    try {
+      var p = localStorage.getItem(PIN_KEY);
+      if (!p || p === '1234') return DEFAULT_PIN;
+      return p;
+    } catch (e) {
+      return DEFAULT_PIN;
+    }
   }
 
   function setPin(pin) {
