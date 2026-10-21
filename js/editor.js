@@ -79,15 +79,16 @@
         return '<button type="button" class="chip-btn" data-add-des="' + i + '" title="' + esc(d.description || d.title) + '">+ ' + esc(d.title) + '</button>';
       }).join('');
 
+      var _isAdmin = App.auth.isAdmin();
       view.innerHTML =
       '<div class="ed-bar">' +
-      '<div class="ed-title"><a class="btn ghost sm" href="#/">← Documents</a><h1 id="ed-title">' + esc(title()) + '</h1>' +
+      '<div class="ed-title">' + (_isAdmin ? '<a class="btn ghost sm" href="#/">← Documents</a>' : '') + '<h1 id="ed-title">' + esc(title()) + '</h1>' +
       '<span class="save-state" id="save-state"></span></div>' +
       '<div class="btn-row">' +
-      '<button class="btn" id="act-save" title="⌘S">Enregistrer le brouillon</button>' +
+      (_isAdmin ? '<button class="btn" id="act-save" title="⌘S">Enregistrer le brouillon</button>' : '') +
       '<button class="btn" id="act-print">Imprimer</button>' +
       '<button class="btn primary" id="act-pdf">Télécharger le PDF</button>' +
-      '<button class="btn" id="act-drive">Enregistrer sur Google Drive</button>' +
+      (_isAdmin ? '<button class="btn" id="act-drive">Enregistrer sur Google Drive</button>' : '') +
       '</div></div>' +
 
       '<div class="editor"><div class="ed-form">' +
@@ -173,11 +174,11 @@
       // Aperçu
       '<div class="ed-preview"><div class="preview-head"><span class="muted small">Aperçu · la pagination exacte est celle du PDF</span>' +
       '<button class="btn sm" id="act-preview">Aperçu PDF</button>' +
-      '<details style="position:relative"><summary class="btn sm" style="list-style:none">Plus ▾</summary>' +
+      (_isAdmin ? '<details style="position:relative"><summary class="btn sm" style="list-style:none">Plus ▾</summary>' +
       '<div class="card" style="position:absolute;right:0;top:34px;z-index:5;padding:6px;display:flex;flex-direction:column;gap:4px;min-width:200px">' +
       '<button class="btn sm ghost" id="act-dup" style="justify-content:flex-start">Dupliquer</button>' +
       (isDevis ? '<button class="btn sm ghost" id="act-convert" style="justify-content:flex-start">Convertir en facture</button>' : '') +
-      '</div></details></div>' +
+      '</div></details>' : '') + '</div>' +
       '<div class="preview-frame" id="pv-frame"><div class="preview-scale" id="pv-scale"></div></div></div>' +
       '</div>';
 
@@ -371,6 +372,18 @@
     if (warnings.length && !window.confirm('Attention :\n• ' + warnings.join('\n• ') + '\n\nExporter quand même ?')) {
       if (!String(doc.client.name || '').trim()) ui.$('#f-client', view).focus();
       return false;
+    }
+    // En mode invité : sauvegarde silencieuse (l'admin retrouvera le doc)
+    if (App.auth.isGuest()) {
+      doc.number = String(doc.number).trim();
+      doc.saved = true;
+      doc.numberAuto = false;
+      doc.guestCreated = true;
+      try {
+        App.numbering.commit(doc.type, doc.number);
+        App.store.saveDoc(util.clone(doc));
+      } catch (e) { /* silencieux en mode invité */ }
+      return true;
     }
     return save({ silent: true });
   }
@@ -574,12 +587,15 @@
     });
 
     bindImageDrop();
-    ui.$('#act-save', view).addEventListener('click', function () { save(); });
+    var saveBtn = ui.$('#act-save', view);
+    if (saveBtn) saveBtn.addEventListener('click', function () { save(); });
     ui.$('#act-pdf', view).addEventListener('click', onDownload);
     ui.$('#act-print', view).addEventListener('click', onPrint);
-    ui.$('#act-drive', view).addEventListener('click', onDrive);
+    var driveBtn = ui.$('#act-drive', view);
+    if (driveBtn) driveBtn.addEventListener('click', onDrive);
     ui.$('#act-preview', view).addEventListener('click', onPreviewPdf);
-    ui.$('#act-dup', view).addEventListener('click', function () { openDraft(App.documents.duplicate(doc)); });
+    var dupBtn = ui.$('#act-dup', view);
+    if (dupBtn) dupBtn.addEventListener('click', function () { openDraft(App.documents.duplicate(doc)); });
     var conv = ui.$('#act-convert', view);
     if (conv) conv.addEventListener('click', function () { openDraft(App.documents.duplicate(doc, 'facture')); });
 

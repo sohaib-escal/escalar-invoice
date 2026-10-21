@@ -241,7 +241,8 @@
       exportedAt: new Date().toISOString(),
       docs: listDocs(),
       counters: getCounters(),
-      settings: getSettings()
+      settings: getSettings(),
+      adminPin: App.auth ? App.auth.getPin() : null
     };
   }
 
@@ -281,6 +282,7 @@
     write(KEYS.docs, map);
     write(KEYS.counters, counters);
     if (data.settings) write(KEYS.settings, withDefaults(data.settings, defaultSettings()));
+    if (data.adminPin && App.auth) App.auth.setPin(data.adminPin);
   }
 
   App.store = {

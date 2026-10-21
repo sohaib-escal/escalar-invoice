@@ -121,6 +121,13 @@
       'Les PDF envoyés sur Drive sont une copie des documents finaux : ils ne permettent pas de restaurer les brouillons modifiables.</p>' +
       '<div class="btn-row"><button class="btn sm" id="exp">Exporter mes données</button><button class="btn sm" id="imp">Importer une sauvegarde</button></div>' +
       '</div></div>' +
+
+      '<div class="card" style="margin-top:20px"><div class="section"><h2>Sécurité & Code PIN Administrateur</h2>' +
+      '<p class="small" style="margin-top:0">Ce code PIN protège l\u2019accès administrateur à vos documents, factures et paramètres. Les invités peuvent uniquement créer des devis sans voir les autres documents.</p>' +
+      '<div class="grid g2">' +
+      '<label class="f">Code PIN administrateur<input type="text" id="set-admin-pin" value="' + esc(App.auth ? App.auth.getPin() : '1234') + '" maxlength="20" placeholder="1234"></label>' +
+      '</div><p class="muted small">Code par défaut : <code>1234</code>. Modifiez-le selon vos besoins.</p></div></div>' +
+
       '</div></div>';
 
     function updateNextPreview() {
@@ -240,6 +247,10 @@
           var v = parseInt(ui.$('#next-' + t, view).value, 10);
           if (v >= 1 && v !== App.numbering.lastUsed(t, today) + 1) App.numbering.setNext(t, today, v);
         });
+        var pinEl = ui.$('#set-admin-pin', view);
+        if (pinEl && pinEl.value.trim() && App.auth) {
+          App.auth.setPin(pinEl.value.trim());
+        }
       } catch (e) { ui.toast(e.message, 'err'); return false; }
       dirty = false;
       ui.toast('Paramètres enregistrés.', 'ok');

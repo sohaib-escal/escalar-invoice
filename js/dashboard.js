@@ -69,7 +69,8 @@
             '<td class="client-cell" title="' + esc(d.client && d.client.name) + '">' + (d.client && d.client.name ? esc(d.client.name) : '<span class="muted">—</span>') + '</td>' +
             '<td class="amount">' + util.formatMoney(ttc) + '</td>' +
             '<td class="hide-sm"><span class="badge s-' + esc(d.status) + '">' + esc(App.documents.statusLabel(d.type, d.status)) + '</span>' +
-            (d.drive ? '<span class="drive-tag" title="Envoyé sur Google Drive le ' + esc(new Date(d.drive.uploadedAt).toLocaleString('fr-FR')) + '">Drive ✓</span>' : '') + '</td>' +
+            (d.drive ? '<span class="drive-tag" title="Envoyé sur Google Drive le ' + esc(new Date(d.drive.uploadedAt).toLocaleString('fr-FR')) + '">Drive ✓</span>' : '') +
+            (d.guestCreated ? '<span class="guest-tag" title="Créé par un invité">👤 Invité</span>' : '') + '</td>' +
             '<td class="actions"><a class="btn sm" href="#/doc/' + esc(d.id) + '">Ouvrir</a>' +
             '<button class="btn sm" data-act="dup">Dupliquer</button>' +
             '<button class="btn sm" data-act="pdf">PDF</button>' +
