@@ -185,6 +185,7 @@
     bind();
     refresh();
     updateNumberMsg();
+    updateDriveBtnState();
     setSaveState();
     fitPreview();
     App.drive.preload();
@@ -378,7 +379,57 @@
     var t = new Date();
     setSaveState('Enregistré à ' + String(t.getHours()).padStart(2, '0') + ':' + String(t.getMinutes()).padStart(2, '0'));
     if (!opts.silent) ui.toast(title() + ' enregistré.', 'ok');
+
+    // Export automatique Google Drive si configuré et session active
+    if (App.drive && App.drive.isConfigured() && App.drive.isConnected()) {
+      triggerDriveAutoExport(doc);
+    }
     return true;
+  }
+
+  var autoSyncing = false;
+  function triggerDriveAutoExport(targetDoc) {
+    if (autoSyncing) return;
+    autoSyncing = true;
+    var snapshot = util.clone(targetDoc);
+    var sem = App.drive.getSemesterName(snapshot.issueDate);
+    App.drive.saveDocument(snapshot).then(function (file) {
+      var info = {
+        fileId: file.id,
+        name: file.name,
+        link: file.webViewLink || '',
+        uploadedAt: new Date().toISOString()
+      };
+      doc.drive = info;
+      var stored = App.store.getDoc(snapshot.id);
+      if (stored) {
+        stored.drive = info;
+        App.store.saveDocAsync(stored).catch(function () {});
+      }
+      ui.toast('☁️ Auto-export Drive (' + esc(sem) + ') : ' + esc(file.name) +
+        (file.webViewLink ? ' · <a href="' + esc(file.webViewLink) + '" target="_blank" rel="noopener">Ouvrir</a>' : ''),
+        'ok', { html: true, duration: 8000 });
+      updateDriveBtnState();
+    }).catch(function (err) {
+      console.warn('Auto-export Google Drive :', err);
+    }).finally(function () {
+      autoSyncing = false;
+    });
+  }
+
+  function updateDriveBtnState() {
+    var b = ui.$('#act-drive', view);
+    if (!b) return;
+    if (doc.drive) {
+      b.textContent = 'Drive ✓';
+      b.title = 'Enregistré sur Google Drive (escalarmedia). Cliquez pour envoyer une mise à jour.';
+    } else if (App.drive && App.drive.isConnected()) {
+      b.textContent = '☁️ Auto-export Drive';
+      b.title = 'Connecté à Google Drive (escalarmedia). Sauvegarde automatique active.';
+    } else {
+      b.textContent = 'Enregistrer sur Google Drive';
+      b.title = 'Connecter et exporter vers Google Drive (dossier escalarmedia)';
+    }
   }
 
   /** Validation avant export puis enregistrement automatique. */
@@ -426,7 +477,7 @@
       return;
     }
     if (!App.drive.originSupported()) {
-      ui.toast('Google Drive ne fonctionne pas avec un fichier ouvert en double-clic (file://). Lancez l’application via http://localhost (voir README). Le PDF peut être téléchargé normalement.', 'err', { duration: 12000 });
+      ui.toast('Google Drive nécessite une connexion https (ex: https://invoice.escalarmedia.ma).', 'err', { duration: 12000 });
       return;
     }
     var ok = await prepareExport();
@@ -435,15 +486,17 @@
     var tokenPromise = App.drive.getToken(); // appelé dans le clic : la fenêtre Google n'est pas bloquée
     busy(btn, true, 'Envoi vers Drive…');
     var snapshot = util.clone(doc);
+    var sem = App.drive.getSemesterName(snapshot.issueDate);
     App.drive.saveDocument(snapshot, tokenPromise).then(function (file) {
       var info = { fileId: file.id, name: file.name, link: file.webViewLink || '', uploadedAt: new Date().toISOString() };
       var stored = App.store.getDoc(snapshot.id);
-      if (stored) { stored.drive = info; App.store.saveDoc(stored); }
+      if (stored) { stored.drive = info; App.store.saveDocAsync(stored).catch(function () {}); }
       doc.drive = info;
-      ui.toast('Enregistré sur Google Drive : ' + esc(file.name) + (file.webViewLink ? ' · <a href="' + esc(file.webViewLink) + '" target="_blank" rel="noopener">Ouvrir</a>' : ''), 'ok', { html: true, duration: 8000 });
+      ui.toast('Enregistré sur Google Drive (escalarmedia / ' + esc(sem) + ') : ' + esc(file.name) + (file.webViewLink ? ' · <a href="' + esc(file.webViewLink) + '" target="_blank" rel="noopener">Ouvrir</a>' : ''), 'ok', { html: true, duration: 8000 });
+      updateDriveBtnState();
     }).catch(function (err) {
       console.error(err);
-      ui.toast('Échec de l’envoi sur Google Drive : ' + err.message + ' Le document reste enregistré localement ; vous pouvez télécharger le PDF.', 'err', { duration: 12000 });
+      ui.toast('Échec de l’envoi sur Google Drive : ' + err.message + ' Le document reste enregistré ; vous pouvez télécharger le PDF.', 'err', { duration: 12000 });
     }).then(function () { busy(btn, false); });
   }
 

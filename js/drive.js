@@ -1,21 +1,23 @@
 /*
  * Envoi des PDF vers Google Drive, 100 % navigateur :
  * - autorisation OAuth via Google Identity Services (modèle « token », sans secret client) ;
- * - portée minimale drive.file : l'application ne voit que les fichiers et dossiers qu'elle a créés ;
- * - le jeton d'accès reste en mémoire (jamais dans localStorage) et expire après ~1 h.
+ * - dossier racine configurable (par défaut "escalarmedia") ;
+ * - classement automatique par semestre (ex: escalarmedia / S2 2026 / Factures) ;
+ * - persistance du jeton de session dans sessionStorage (~1h) pour l'export automatique continu.
  */
 (function (App) {
   'use strict';
 
-  var SCOPE = 'https://www.googleapis.com/auth/drive.file';
+  var SCOPE = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive';
   var GIS_SRC = 'https://accounts.google.com/gsi/client';
   var API = 'https://www.googleapis.com/drive/v3';
   var UPLOAD = 'https://www.googleapis.com/upload/drive/v3/files';
   var FOLDER_MIME = 'application/vnd.google-apps.folder';
-  var ROOT_NAME = 'Facturation ESCALAR MEDIA';
+  var ROOT_NAME = 'escalarmedia';
   var SUB_NAMES = { devis: 'Devis', facture: 'Factures' };
+  var TOKEN_STORAGE_KEY = 'escalar_drive_session_token';
 
-  var token = null;        // { value, expiresAt } — en mémoire uniquement
+  var token = null;        // { value, expiresAt }
   var tokenClient = null;
   var tokenClientId = null;
   var gisPromise = null;
@@ -40,8 +42,44 @@
     return location.protocol === 'http:' || location.protocol === 'https:';
   }
 
+  function getStoredToken() {
+    try {
+      var raw = sessionStorage.getItem(TOKEN_STORAGE_KEY);
+      if (!raw) return null;
+      var data = JSON.parse(raw);
+      if (data && data.value && data.expiresAt > Date.now() + 60000) {
+        return data;
+      }
+    } catch (e) {}
+    return null;
+  }
+
+  function saveStoredToken(t) {
+    try {
+      if (t) sessionStorage.setItem(TOKEN_STORAGE_KEY, JSON.stringify(t));
+      else sessionStorage.removeItem(TOKEN_STORAGE_KEY);
+    } catch (e) {}
+  }
+
   function isConnected() {
-    return !!(token && token.expiresAt > Date.now() + 60000);
+    if (token && token.expiresAt > Date.now() + 60000) return true;
+    var stored = getStoredToken();
+    if (stored) {
+      token = stored;
+      return true;
+    }
+    return false;
+  }
+
+  /** Calcule l'étiquette du semestre selon la date (ex: "S2 2026") */
+  function getSemesterName(dateStr) {
+    var d = (dateStr || '').trim();
+    var year = d.slice(0, 4);
+    if (!/^\d{4}$/.test(year)) year = String(new Date().getFullYear());
+    var m = parseInt(d.slice(5, 7), 10);
+    if (isNaN(m) || m < 1 || m > 12) m = new Date().getMonth() + 1;
+    var s = m <= 6 ? 'S1' : 'S2';
+    return s + ' ' + year;
   }
 
   function loadGis() {
@@ -82,11 +120,20 @@
             : 'Autorisation Google impossible (' + resp.error + ').', 'denied'));
           return;
         }
-        if (!window.google.accounts.oauth2.hasGrantedAllScopes(resp, SCOPE)) {
+        var okScope = true;
+        if (window.google.accounts.oauth2.hasGrantedAnyScope) {
+          okScope = window.google.accounts.oauth2.hasGrantedAnyScope(
+            resp,
+            'https://www.googleapis.com/auth/drive',
+            'https://www.googleapis.com/auth/drive.file'
+          );
+        }
+        if (!okScope) {
           p.reject(DriveError('L’accès à Google Drive n’a pas été accordé. Cochez l’autorisation Drive lors de la connexion.', 'denied'));
           return;
         }
         token = { value: resp.access_token, expiresAt: Date.now() + (Number(resp.expires_in) || 3600) * 1000 };
+        saveStoredToken(token);
         p.resolve(token.value);
       },
       error_callback: function (err) {
@@ -109,7 +156,7 @@
    */
   function getToken(forcePrompt) {
     if (!isConfigured()) return Promise.reject(DriveError('Google Drive n’est pas configuré (Paramètres → Google Drive).', 'config'));
-    if (!originSupported()) return Promise.reject(DriveError('Google Drive nécessite d’ouvrir l’application via http://localhost (voir README), pas en double-cliquant sur index.html.', 'origin'));
+    if (!originSupported()) return Promise.reject(DriveError('Google Drive nécessite une connexion https (ex: https://invoice.escalarmedia.ma).', 'origin'));
     if (!forcePrompt && isConnected()) return Promise.resolve(token.value);
     function request() {
       return new Promise(function (resolve, reject) {
@@ -127,11 +174,12 @@
       try { window.google.accounts.oauth2.revoke(token.value, function () {}); } catch (e) { /* ignore */ }
     }
     token = null;
+    saveStoredToken(null);
   }
 
   /** Appel REST avec gestion des erreurs courantes. */
   function api(url, options) {
-    if (!isConnected()) return Promise.reject(DriveError('Session Google expirée. Cliquez à nouveau sur « Enregistrer sur Google Drive ».', 'expired'));
+    if (!isConnected()) return Promise.reject(DriveError('Session Google expirée. Reconnectez-vous à Google Drive.', 'expired'));
     options = options || {};
     options.headers = Object.assign({ Authorization: 'Bearer ' + token.value }, options.headers || {});
     return fetch(url, options).catch(function () {
@@ -140,7 +188,7 @@
       if (res.ok) return res.status === 204 ? null : res.json();
       return res.json().catch(function () { return {}; }).then(function (body) {
         var msg = body && body.error && body.error.message ? body.error.message : res.statusText;
-        if (res.status === 401) { token = null; throw DriveError('Session Google expirée. Cliquez à nouveau pour vous reconnecter.', 'expired'); }
+        if (res.status === 401) { token = null; saveStoredToken(null); throw DriveError('Session Google expirée. Cliquez à nouveau pour vous reconnecter.', 'expired'); }
         if (res.status === 403) throw DriveError('Accès refusé par Google Drive : ' + msg, 'forbidden');
         if (res.status === 404) throw DriveError('Élément introuvable sur Google Drive.', 'notfound');
         throw DriveError('Erreur Google Drive (' + res.status + ') : ' + msg, 'api');
@@ -179,24 +227,56 @@
     });
   }
 
-  /** Crée si besoin « Facturation ESCALAR MEDIA / Devis | Factures » et mémorise les identifiants. */
-  function ensureFolder(type) {
+  /** Recherche ou crée le dossier racine 'escalarmedia' */
+  function findOrCreateRootFolder() {
     var settings = App.store.getSettings();
-    var d = settings.drive;
-    var key = type === 'facture' ? 'factureFolderId' : 'devisFolderId';
-    return folderAlive(d[key]).then(function (ok) {
-      if (ok) return d[key];
-      return folderAlive(d.rootFolderId).then(function (rootOk) {
-        return rootOk ? d.rootFolderId : findOrCreateFolder(ROOT_NAME, null);
-      }).then(function (rootId) {
-        d.rootFolderId = rootId;
-        return findOrCreateFolder(SUB_NAMES[type], rootId);
-      }).then(function (id) {
-        var fresh = App.store.getSettings();
-        fresh.drive.rootFolderId = d.rootFolderId;
-        fresh.drive[key] = id;
-        App.store.saveSettings(fresh);
-        return id;
+    var cached = settings.drive && settings.drive.rootFolderId;
+    return folderAlive(cached).then(function (ok) {
+      if (ok) return cached;
+      // Chercher n'importe quel dossier existant correspondant à "escalarmedia" (toute casse)
+      var query = "mimeType = '" + FOLDER_MIME + "' and trashed = false and " +
+        "(name = 'escalarmedia' or name = 'EscalarMedia' or name = 'ESCALARMEDIA' or name = 'escalar media' or name = 'Escalar Media' or name = 'Facturation ESCALAR MEDIA')";
+      return listFiles(query).then(function (r) {
+        if (r.files && r.files.length) {
+          var foundId = r.files[0].id;
+          persistRootFolderId(foundId);
+          return foundId;
+        }
+        return api(API + '/files?fields=id', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: ROOT_NAME, mimeType: FOLDER_MIME })
+        }).then(function (f) {
+          persistRootFolderId(f.id);
+          return f.id;
+        });
+      });
+    });
+  }
+
+  function persistRootFolderId(id) {
+    try {
+      var fresh = App.store.getSettings();
+      fresh.drive = fresh.drive || {};
+      fresh.drive.rootFolderId = id;
+      App.store.saveSettings(fresh);
+    } catch (e) {}
+  }
+
+  /**
+   * Crée si besoin l'arborescence :
+   * escalarmedia
+   *   └── S1 2026 (ou S2 2026)
+   *         ├── Devis
+   *         └── Factures
+   */
+  function ensureFolder(type, issueDate) {
+    var semester = getSemesterName(issueDate);
+    var subName = SUB_NAMES[type] || (type === 'facture' ? 'Factures' : 'Devis');
+
+    return findOrCreateRootFolder().then(function (rootId) {
+      return findOrCreateFolder(semester, rootId).then(function (semesterFolderId) {
+        return findOrCreateFolder(subName, semesterFolderId);
       });
     });
   }
@@ -231,13 +311,15 @@
   }
 
   /**
-   * Flux complet. `tokenPromise` provient de getToken() appelé dans le clic.
+   * Flux complet. `tokenPromise` provient de getToken() appelé dans le clic ou de la session active.
    * Ne résout qu'après confirmation de Google Drive (fichier créé avec un identifiant).
    */
   function saveDocument(doc, tokenPromise) {
     var folderId;
-    return tokenPromise
-      .then(function () { return ensureFolder(doc.type); })
+    var issueDate = doc.issueDate || doc.date || (new Date().toISOString().slice(0, 10));
+    var p = tokenPromise || (isConnected() ? Promise.resolve(token.value) : getToken());
+    return p
+      .then(function () { return ensureFolder(doc.type, issueDate); })
       .then(function (id) { folderId = id; return App.pdf.toBlob(doc); })
       .then(function (r) {
         return uniqueName(folderId, r.fileName).then(function (name) { return uploadPdf(r.blob, name, folderId); });
@@ -257,6 +339,8 @@
     disconnect: disconnect,
     ensureFolder: ensureFolder,
     saveDocument: saveDocument,
+    getSemesterName: getSemesterName,
+    findOrCreateRootFolder: findOrCreateRootFolder,
     ROOT_NAME: ROOT_NAME
   };
 })(window.App = window.App || {});

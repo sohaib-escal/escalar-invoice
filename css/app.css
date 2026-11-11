@@ -122,7 +122,8 @@ table.list .actions .btn + .btn { margin-left: 4px; }
 .badge.s-accepte, .badge.s-payee { background: var(--ok-soft); color: var(--ok); }
 .badge.s-refuse, .badge.s-annulee { background: var(--danger-soft); color: var(--danger); }
 .badge.s-envoye, .badge.s-emise { background: var(--warn-soft); color: var(--warn); }
-.drive-tag { font-size: 11.5px; color: var(--ok); margin-left: 6px; font-weight: 600; }
+.drive-tag { font-size: 11.5px; color: var(--ok); margin-left: 6px; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; gap: 2px; }
+a.drive-tag:hover { text-decoration: underline; }
 .empty { padding: 48px 20px; text-align: center; color: var(--muted); }
 .empty .btn-row { justify-content: center; margin-top: 14px; }
 .foot-note { margin-top: 18px; display: flex; justify-content: space-between; gap: 16px; align-items: center; flex-wrap: wrap; }

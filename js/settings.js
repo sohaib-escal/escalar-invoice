@@ -112,14 +112,13 @@
       (s.drive.rootFolderId ? ' · Dossier « ' + esc(App.drive.ROOT_NAME) + ' » prêt' : '') + '</p>' +
       '<div class="btn-row"><button class="btn sm" id="drive-test"' + (driveOk ? '' : ' disabled') + '>Se connecter et préparer les dossiers</button>' +
       (App.drive.isConnected() ? '<button class="btn sm ghost" id="drive-off">Se déconnecter</button>' : '') + '</div>' +
-      '<p class="muted small">Les PDF sont rangés dans <code>' + esc(App.drive.ROOT_NAME) + '/Devis</code> et <code>/Factures</code>. ' +
-      'Accès limité aux fichiers créés par l’application (portée <code>drive.file</code>).</p></div></div>' +
+      '<p class="muted small">Les PDF sont automatiquement rangés dans le dossier <code>' + esc(App.drive.ROOT_NAME) + '</code>, classés par semestre (ex: <code>' + esc(App.drive.ROOT_NAME) + '/S2 ' + new Date().getFullYear() + '/Factures</code>). ' +
+      'L’exportation se fait automatiquement à chaque enregistrement lorsque Drive est connecté.</p></div></div>' +
 
-      '<div class="card" style="margin-top:20px"><div class="section"><h2>Données</h2>' +
-      '<p class="small" style="margin-top:0">Documents, compteurs et paramètres sont stockés dans ce navigateur (localStorage). Ils sont perdus si vous effacez les données du site, ' +
-      'et ne sont pas visibles depuis un autre navigateur ou appareil. Exportez une sauvegarde régulièrement. ' +
-      'Les PDF envoyés sur Drive sont une copie des documents finaux : ils ne permettent pas de restaurer les brouillons modifiables.</p>' +
-      '<div class="btn-row"><button class="btn sm" id="exp">Exporter mes données</button><button class="btn sm" id="imp">Importer une sauvegarde</button></div>' +
+      '<div class="card" style="margin-top:20px"><div class="section"><h2>Données &amp; Sauvegarde</h2>' +
+      '<p class="small" style="margin-top:0">Les documents et paramètres sont synchronisés de manière permanente avec votre base de données PostgreSQL (Supabase). ' +
+      'Vous pouvez également exporter une copie locale JSON de secours ou restaurer un fichier précédent.</p>' +
+      '<div class="btn-row"><button class="btn sm" id="exp">Exporter mes données (JSON)</button><button class="btn sm" id="imp">Importer une sauvegarde</button></div>' +
       '</div></div>' +
 
       '<div class="card" style="margin-top:20px"><div class="section"><h2>Base de données &amp; Accès Super Admin</h2>' +
@@ -369,9 +368,10 @@
       if (!App.drive.isConfigured()) { ui.toast('Renseignez d’abord l’identifiant client OAuth.', 'err'); return; }
       var tp = App.drive.getToken();
       test.disabled = true;
-      tp.then(function () { return App.drive.ensureFolder('devis'); })
-        .then(function () { return App.drive.ensureFolder('facture'); })
-        .then(function () { ui.toast('Google Drive connecté. Dossiers prêts.', 'ok'); render(view); })
+      var nowIso = new Date().toISOString().slice(0, 10);
+      tp.then(function () { return App.drive.ensureFolder('devis', nowIso); })
+        .then(function () { return App.drive.ensureFolder('facture', nowIso); })
+        .then(function () { ui.toast('Google Drive connecté. Dossier « escalarmedia » et semestre en cours prêts.', 'ok'); render(view); })
         .catch(function (err) { ui.toast(err.message, 'err'); test.disabled = false; });
     });
     ui.$('#gm-test', view).addEventListener('click', function (e) {

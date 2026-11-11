@@ -103,5 +103,12 @@
     eq('store listDocs is array', Array.isArray(App.store.listDocs()), true);
   }
 
+  if (App.drive) {
+    eq('drive root folder is escalarmedia', App.drive.ROOT_NAME, 'escalarmedia');
+    eq('drive semester S1', App.drive.getSemesterName('2026-03-15'), 'S1 2026');
+    eq('drive semester S2', App.drive.getSemesterName('2026-11-11'), 'S2 2026');
+    eq('drive origin supported https', App.drive.originSupported(), true);
+  }
+
   App.testResults = results;
 })(window.App);

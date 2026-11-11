@@ -78,7 +78,7 @@
             '<td class="client-cell" title="' + esc(d.client && d.client.name) + '">' + (d.client && d.client.name ? esc(d.client.name) : '<span class="muted">—</span>') + '</td>' +
             '<td class="amount">' + util.formatMoney(ttc) + '</td>' +
             '<td class="hide-sm"><span class="badge s-' + esc(d.status) + '">' + esc(App.documents.statusLabel(d.type, d.status)) + '</span>' +
-            (d.drive ? '<span class="drive-tag" title="Envoyé sur Google Drive">Drive ✓</span>' : '') +
+            (d.drive ? (d.drive.link ? '<a class="drive-tag" href="' + esc(d.drive.link) + '" target="_blank" rel="noopener" title="Ouvrir sur Google Drive">Drive ↗</a>' : '<span class="drive-tag" title="Envoyé sur Google Drive">Drive ✓</span>') : '') +
             '</td>' +
             '<td class="actions"><a class="btn sm" href="#/doc/' + esc(d.id) + '">Ouvrir</a>' +
             '<button class="btn sm" data-act="dup">Dupliquer</button>' +
