@@ -1,4 +1,4 @@
-/* Tableau de bord : historique local des devis et factures. */
+/* Tableau de bord : historique des devis et factures (vue utilisateur & admin). */
 (function (App) {
   'use strict';
 
@@ -16,10 +16,18 @@
 
   function render(view) {
     var prefs = loadPrefs();
+    var isAdmin = App.auth.isAdmin();
+
     view.innerHTML =
-      '<div class="page-head"><h1>Documents</h1><div class="btn-row">' +
+      '<div class="page-head">' +
+      '<div>' +
+      '<h1>' + (isAdmin ? 'Documents de l’équipe' : 'Mes Documents') + '</h1>' +
+      (isAdmin ? '<p class="muted small" style="margin:2px 0 0"><a href="#/admin">Ouvrir le Tableau de bord Super Admin →</a></p>' : '') +
+      '</div>' +
+      '<div class="btn-row">' +
       '<a class="btn primary" href="#/nouveau/devis">+ Nouveau devis</a>' +
-      '<a class="btn primary" href="#/nouveau/facture">+ Nouvelle facture</a></div></div>' +
+      '<a class="btn primary" href="#/nouveau/facture">+ Nouvelle facture</a>' +
+      '</div></div>' +
       '<div class="card">' +
       '<div class="toolbar">' +
       '<input type="search" id="q" placeholder="Rechercher un numéro ou un client…" value="' + esc(prefs.q) + '">' +
@@ -29,11 +37,12 @@
       }).join('') + '</div>' +
       '<select id="sort"><option value="desc">Plus récents d’abord</option><option value="asc">Plus anciens d’abord</option></select>' +
       '<span class="muted small" id="count"></span></div>' +
-      '<div id="list"></div></div>' +
-      '<div class="foot-note"><div class="muted small">Les documents sont enregistrés dans ce navigateur uniquement. ' +
-      'Exportez régulièrement une sauvegarde.</div><div class="btn-row">' +
-      '<button class="btn sm" id="export">Exporter mes données</button>' +
-      '<button class="btn sm" id="import">Importer une sauvegarde</button></div></div>';
+      '<div id="list"><div class="empty muted">Chargement des documents…</div></div></div>' +
+      (isAdmin
+        ? '<div class="foot-note"><div class="muted small">Synchronisé avec la base de données. Sauvegardes JSON disponibles.</div><div class="btn-row">' +
+          '<button class="btn sm" id="export">Exporter mes données</button>' +
+          '<button class="btn sm" id="import">Importer une sauvegarde</button></div></div>'
+        : '');
 
     ui.$('#sort', view).value = prefs.sort;
 
@@ -69,12 +78,12 @@
             '<td class="client-cell" title="' + esc(d.client && d.client.name) + '">' + (d.client && d.client.name ? esc(d.client.name) : '<span class="muted">—</span>') + '</td>' +
             '<td class="amount">' + util.formatMoney(ttc) + '</td>' +
             '<td class="hide-sm"><span class="badge s-' + esc(d.status) + '">' + esc(App.documents.statusLabel(d.type, d.status)) + '</span>' +
-            (d.drive ? '<span class="drive-tag" title="Envoyé sur Google Drive le ' + esc(new Date(d.drive.uploadedAt).toLocaleString('fr-FR')) + '">Drive ✓</span>' : '') +
-            (d.guestCreated ? '<span class="guest-tag" title="Créé par un invité">👤 Invité</span>' : '') + '</td>' +
+            (d.drive ? '<span class="drive-tag" title="Envoyé sur Google Drive">Drive ✓</span>' : '') +
+            '</td>' +
             '<td class="actions"><a class="btn sm" href="#/doc/' + esc(d.id) + '">Ouvrir</a>' +
             '<button class="btn sm" data-act="dup">Dupliquer</button>' +
             '<button class="btn sm" data-act="pdf">PDF</button>' +
-            '<button class="btn sm danger" data-act="del">Supprimer</button></td></tr>';
+            (isAdmin ? '<button class="btn sm danger" data-act="del">Supprimer</button>' : '') + '</td></tr>';
         }).join('') + '</tbody></table>';
     }
 
@@ -86,8 +95,11 @@
       ui.$$('#type button', view).forEach(function (x) { x.classList.toggle('on', x === b); });
       update();
     });
-    ui.$('#export', view).addEventListener('click', App.backup.exportBackup);
-    ui.$('#import', view).addEventListener('click', function () { App.backup.importBackup(update); });
+
+    var exportBtn = ui.$('#export', view);
+    if (exportBtn) exportBtn.addEventListener('click', App.backup.exportBackup);
+    var importBtn = ui.$('#import', view);
+    if (importBtn) importBtn.addEventListener('click', function () { App.backup.importBackup(update); });
 
     ui.$('#list', view).addEventListener('click', function (e) {
       var btn = e.target.closest('button[data-act]'); if (!btn) return;
@@ -102,17 +114,24 @@
           .catch(function (err) { console.error(err); ui.toast('Échec de la génération du PDF : ' + err.message, 'err'); })
           .then(function () { btn.disabled = false; });
       } else if (btn.dataset.act === 'del') {
-        ui.confirmInline(btn, function () {
-          App.store.deleteDoc(id);
-          ui.toast(App.documents.typeLabel(doc.type) + ' ' + doc.number + ' supprimé. Son numéro ne sera pas réutilisé.');
-          update();
+        ui.confirmInline(btn, async function () {
+          try {
+            await App.store.deleteDocAsync(id);
+            ui.toast(App.documents.typeLabel(doc.type) + ' ' + doc.number + ' supprimé.');
+            update();
+          } catch (err) {
+            ui.toast('Erreur suppression : ' + err.message, 'err');
+          }
         }, 'Confirmer la suppression');
       }
     });
 
+    // Chargement initial rapide depuis le cache, puis rafraîchissement depuis Supabase
     update();
-    ui.$('#q', view).focus();
+    App.store.fetchDocs().then(function () {
+      update();
+    });
   }
 
   App.dashboard = { render: render };
-})(window.App = window.App || {});
+})(typeof window !== 'undefined' ? (window.App = window.App || {}) : (typeof global !== 'undefined' ? (global.window = global.window || {}, global.window.App = global.window.App || {}) : {}));

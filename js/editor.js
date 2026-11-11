@@ -79,16 +79,15 @@
         return '<button type="button" class="chip-btn" data-add-des="' + i + '" title="' + esc(d.description || d.title) + '">+ ' + esc(d.title) + '</button>';
       }).join('');
 
-      var _isAdmin = App.auth.isAdmin();
       view.innerHTML =
       '<div class="ed-bar">' +
-      '<div class="ed-title">' + (_isAdmin ? '<a class="btn ghost sm" href="#/">← Documents</a>' : '') + '<h1 id="ed-title">' + esc(title()) + '</h1>' +
+      '<div class="ed-title"><a class="btn ghost sm" href="#/">← Documents</a><h1 id="ed-title">' + esc(title()) + '</h1>' +
       '<span class="save-state" id="save-state"></span></div>' +
       '<div class="btn-row">' +
-      (_isAdmin ? '<button class="btn" id="act-save" title="⌘S">Enregistrer le brouillon</button>' : '') +
+      '<button class="btn" id="act-save" title="⌘S">Enregistrer le brouillon</button>' +
       '<button class="btn" id="act-print">Imprimer</button>' +
       '<button class="btn primary" id="act-pdf">Télécharger le PDF</button>' +
-      (_isAdmin ? '<button class="btn" id="act-drive">Enregistrer sur Google Drive</button>' : '') +
+      '<button class="btn" id="act-drive">Enregistrer sur Google Drive</button>' +
       '</div></div>' +
 
       '<div class="editor"><div class="ed-form">' +
@@ -174,11 +173,11 @@
       // Aperçu
       '<div class="ed-preview"><div class="preview-head"><span class="muted small">Aperçu · la pagination exacte est celle du PDF</span>' +
       '<button class="btn sm" id="act-preview">Aperçu PDF</button>' +
-      (_isAdmin ? '<details style="position:relative"><summary class="btn sm" style="list-style:none">Plus ▾</summary>' +
+      '<details style="position:relative"><summary class="btn sm" style="list-style:none">Plus ▾</summary>' +
       '<div class="card" style="position:absolute;right:0;top:34px;z-index:5;padding:6px;display:flex;flex-direction:column;gap:4px;min-width:200px">' +
       '<button class="btn sm ghost" id="act-dup" style="justify-content:flex-start">Dupliquer</button>' +
       (isDevis ? '<button class="btn sm ghost" id="act-convert" style="justify-content:flex-start">Convertir en facture</button>' : '') +
-      '</div></details>' : '') + '</div>' +
+      '</div></details></div>' +
       '<div class="preview-frame" id="pv-frame"><div class="preview-scale" id="pv-scale"></div></div></div>' +
       '</div>';
 
@@ -321,31 +320,51 @@
 
   /* ---------------- Actions ---------------- */
 
-  /** Enregistre le document. Le numéro automatique n'est consommé qu'ici. */
-  function save(opts) {
+  /** Enregistre le document. Le numéro automatique est alloué de façon atomique ici. */
+  async function save(opts) {
     opts = opts || {};
     if (!String(doc.number || '').trim()) { ui.toast('Le numéro du document est obligatoire.', 'err'); return false; }
     doc.number = String(doc.number).trim();
-    if (App.numbering.numberExists(doc.number, doc.id)) {
+
+    var wasSaved = doc.saved;
+    setSaveState('Enregistrement…');
+
+    // Attribution atomique anti-doublon si numéro automatique
+    if (!wasSaved && doc.numberAuto) {
+      try {
+        doc.number = await App.numbering.allocateAtomic(doc.type, doc.issueDate);
+      } catch (numErr) {
+        console.warn('Fallback numbering local:', numErr);
+      }
+    } else if (App.numbering.numberExists(doc.number, doc.id)) {
       if (!doc.saved && doc.numberAuto) {
         var old = doc.number;
         doc.number = App.numbering.peek(doc.type, doc.issueDate);
         ui.toast('Le numéro ' + old + ' venait d’être utilisé : ce document reçoit le numéro ' + doc.number + '.');
       } else if (!window.confirm('Le numéro ' + doc.number + ' est déjà utilisé par un autre document.\nEnregistrer quand même avec ce numéro ?')) {
+        setSaveState();
         return false;
       }
     }
-    var wasSaved = doc.saved;
+
     doc.saved = true;
     doc.numberAuto = false;
+
+    var currentUser = App.auth.getUser();
+    if (currentUser && !doc.createdBy) {
+      doc.createdBy = currentUser.id;
+    }
+
     try {
       App.numbering.commit(doc.type, doc.number);
-      App.store.saveDoc(util.clone(doc));
+      await App.store.saveDocAsync(util.clone(doc));
     } catch (e) {
       doc.saved = wasSaved;
+      setSaveState();
       ui.toast(e.message, 'err');
       return false;
     }
+
     dirty = false;
     draft = null;
     if (!wasSaved) {
@@ -363,7 +382,7 @@
   }
 
   /** Validation avant export puis enregistrement automatique. */
-  function prepareExport() {
+  async function prepareExport() {
     var totals = App.calc.computeTotals(doc);
     var v = App.documents.validate(doc, totals);
     showAlerts(v);
@@ -373,19 +392,7 @@
       if (!String(doc.client.name || '').trim()) ui.$('#f-client', view).focus();
       return false;
     }
-    // En mode invité : sauvegarde silencieuse (l'admin retrouvera le doc)
-    if (App.auth.isGuest()) {
-      doc.number = String(doc.number).trim();
-      doc.saved = true;
-      doc.numberAuto = false;
-      doc.guestCreated = true;
-      try {
-        App.numbering.commit(doc.type, doc.number);
-        App.store.saveDoc(util.clone(doc));
-      } catch (e) { /* silencieux en mode invité */ }
-      return true;
-    }
-    return save({ silent: true });
+    return await save({ silent: true });
   }
 
   function busy(btn, on, label) {
@@ -393,8 +400,9 @@
     else { btn.textContent = btn._label; btn.disabled = false; }
   }
 
-  function onDownload(e) {
-    if (!prepareExport()) return;
+  async function onDownload(e) {
+    var ok = await prepareExport();
+    if (!ok) return;
     var btn = e.currentTarget;
     busy(btn, true, 'Génération…');
     App.pdf.download(doc).then(function (r) { ui.toast('PDF téléchargé : ' + r.fileName, 'ok'); })
@@ -402,8 +410,9 @@
       .then(function () { busy(btn, false); });
   }
 
-  function onPrint() {
-    if (!prepareExport()) return;
+  async function onPrint() {
+    var ok = await prepareExport();
+    if (!ok) return;
     App.pdf.print(doc).catch(function (err) { console.error(err); ui.toast('Impression impossible : ' + err.message, 'err'); });
   }
 
@@ -411,7 +420,7 @@
     App.pdf.show(doc).catch(function (err) { console.error(err); ui.toast('Aperçu PDF impossible : ' + err.message, 'err'); });
   }
 
-  function onDrive(e) {
+  async function onDrive(e) {
     if (!App.drive.isConfigured()) {
       ui.toast('Google Drive n’est pas configuré. Renseignez votre identifiant client OAuth dans <a href="#/parametres">Paramètres</a>. En attendant, utilisez « Télécharger le PDF ».', 'err', { html: true });
       return;
@@ -420,7 +429,8 @@
       ui.toast('Google Drive ne fonctionne pas avec un fichier ouvert en double-clic (file://). Lancez l’application via http://localhost (voir README). Le PDF peut être téléchargé normalement.', 'err', { duration: 12000 });
       return;
     }
-    if (!prepareExport()) return;
+    var ok = await prepareExport();
+    if (!ok) return;
     var btn = e.currentTarget;
     var tokenPromise = App.drive.getToken(); // appelé dans le clic : la fenêtre Google n'est pas bloquée
     busy(btn, true, 'Envoi vers Drive…');
@@ -702,8 +712,11 @@
 
   /* ---------------- Points d'entrée (routeur) ---------------- */
 
-  function openExisting(container, id) {
+  async function openExisting(container, id) {
     var stored = App.store.getDoc(id);
+    if (!stored) {
+      stored = await App.store.fetchDoc(id);
+    }
     if (!stored) { ui.toast('Document introuvable.', 'err'); location.hash = '#/'; return; }
     doc = util.clone(stored);
     dirty = false;

@@ -107,31 +107,50 @@ What happens next:
 
 If Drive is not configured, the button explains how to set it up, and you can upload downloaded PDFs to Drive by hand.
 
+## Multi-utilisateur, Base de données & Super Admin
+
+L'application intègre désormais une architecture multi-utilisateur complète avec **Supabase** (PostgreSQL, Row Level Security, Auth) :
+- **Super Admin (Propriétaire) :**
+  - Tableau de bord dédié (`#/admin`) avec métriques globales (CA, Devis, Factures, taux d'encaissement).
+  - Registre complet de tous les documents émis par l'équipe avec filtres avancés (type, statut, créateur, période).
+  - Gestion des utilisateurs : création de comptes, attribution de rôles (`Super Admin` ou `Membre`), activation/désactivation, réinitialisation de mots de passe.
+  - Gestion des paramètres globaux de l'entreprise et consultation du journal d'audit.
+- **Membres de l'équipe :**
+  - Connexion individuelle avec e-mail et mot de passe.
+  - Création de devis et factures avec la même expérience simple et fluide.
+  - Accès et gestion de leurs propres documents.
+  - Téléchargement des PDF et export Google Drive.
+  - Protection RLS au niveau de la base de données : les membres ne peuvent pas accéder aux documents des autres ni aux fonctions administratives.
+- **Numérotation atomique :**
+  - Fonction PostgreSQL `allocate_number` avec verrouillage pour garantir l'absence totale de doublons, même en cas de création concurrente par plusieurs collaborateurs.
+
+Consultez le dossier `supabase/README.md` pour exécuter la migration SQL initiale dans votre projet Supabase.
+
 ## Files
 
 ```
 index.html            app shell
-css/app.css           interface
+css/app.css           interface (inclut styles admin et statistiques)
 css/document.css      document preview (same dimensions as the PDF)
+js/supabase-client.js client Supabase, configuration et persistance
 js/util.js            formatting, dates, escaping
 js/calc.js            calculations (pure, no DOM)
 js/words.js           amount in French words
-js/store.js           localStorage, backup validation
-js/numbering.js       document numbers
+js/store.js           couche d'adaptation base de données Supabase + cache
+js/numbering.js       numérotation atomique anti-doublon et compteurs
 js/documents.js       document model, duplication, validation, file names
 js/layout.js          shared presentation model (preview + PDF)
 js/preview.js         HTML preview
 js/pdf.js             PDF renderer (jsPDF)
 js/drive.js           Google Drive upload
 js/extract.js         customer details from an image (Gemini)
+js/auth.js            authentification Supabase, sessions et rôles RLS
+js/admin.js           tableau de bord Super Admin & gestion des utilisateurs
 js/ui.js, backup.js, dashboard.js, editor.js, settings.js, app.js   interface
 js/lib/jspdf.umd.min.js   jsPDF 2.5.1
 js/assets/fonts.js    Carlito (OFL, see Carlito-OFL.txt)
 js/assets/logo.js     ESCALAR MEDIA logo (replaceable in Paramètres)
 js/assets/stamp.js    ESCALAR MEDIA stamp and signature (replaceable in Paramètres)
+supabase/             migration SQL initiale (001_init.sql) et guide
 tests/                calculation tests
 ```
-
-## Not included (by design)
-
-No backend, database, accounts, CRM, product catalogue, stock, accounting, payments, e-signature, e-mail or WhatsApp sending, or multi-company support. The image-to-customer feature fills in the current document only; it does not build a customer list. There is also no "choose an existing Drive folder" picker: with the minimal `drive.file` permission, that would need the Google Picker and an extra API key, so the app creates its own folders instead.

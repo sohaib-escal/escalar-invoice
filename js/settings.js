@@ -122,11 +122,16 @@
       '<div class="btn-row"><button class="btn sm" id="exp">Exporter mes données</button><button class="btn sm" id="imp">Importer une sauvegarde</button></div>' +
       '</div></div>' +
 
-      '<div class="card" style="margin-top:20px"><div class="section"><h2>Sécurité & Code PIN Administrateur</h2>' +
-      '<p class="small" style="margin-top:0">Ce code PIN protège l\u2019accès administrateur à vos documents, factures et paramètres. Les invités peuvent uniquement créer des devis sans voir les autres documents.</p>' +
+      '<div class="card" style="margin-top:20px"><div class="section"><h2>Base de données &amp; Accès Super Admin</h2>' +
+      '<p class="small" style="margin-top:0">L’application est connectée à une base de données PostgreSQL sécurisée avec Row Level Security (RLS). L’authentification est gérée par Supabase.</p>' +
       '<div class="grid g2">' +
-      '<label class="f">Code PIN administrateur<input type="text" id="set-admin-pin" value="' + esc(App.auth ? App.auth.getPin() : '271998') + '" maxlength="20" placeholder="271998"></label>' +
-      '</div><p class="muted small">Code par défaut : <code>271998</code>. Modifiez-le selon vos besoins.</p></div></div>' +
+      '<label class="f span2">État de connexion<input type="text" value="' + (App.supabaseClient && App.supabaseClient.isConfigured() ? 'Connecté à Supabase' : 'Non configuré') + '" disabled></label>' +
+      '</div>' +
+      '<div class="btn-row" style="margin-top:10px">' +
+      '<a class="btn sm primary" href="#/admin">Ouvrir le Tableau de bord Super Admin</a>' +
+      '<button type="button" class="btn sm ghost" id="btn-reconfig-sb">Reconfigurer Supabase</button>' +
+      '</div>' +
+      '</div></div>' +
 
       '</div></div>';
 
@@ -247,14 +252,20 @@
           var v = parseInt(ui.$('#next-' + t, view).value, 10);
           if (v >= 1 && v !== App.numbering.lastUsed(t, today) + 1) App.numbering.setNext(t, today, v);
         });
-        var pinEl = ui.$('#set-admin-pin', view);
-        if (pinEl && pinEl.value.trim() && App.auth) {
-          App.auth.setPin(pinEl.value.trim());
-        }
       } catch (e) { ui.toast(e.message, 'err'); return false; }
       dirty = false;
       ui.toast('Paramètres enregistrés.', 'ok');
       return true;
+    }
+
+    var reconfigBtn = ui.$('#btn-reconfig-sb', view);
+    if (reconfigBtn) {
+      reconfigBtn.addEventListener('click', function () {
+        if (window.confirm('Voulez-vous modifier la configuration Supabase ? Vous serez redirigé vers l’écran de configuration.')) {
+          App.supabaseClient.saveConfig('', '');
+          App.auth.logout();
+        }
+      });
     }
 
     ui.$('#save-settings', view).addEventListener('click', function () { if (saveAll()) render(view); });

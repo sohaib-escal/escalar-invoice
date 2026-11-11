@@ -90,5 +90,18 @@
   eq('parse format libre', N.parse('facture', 'FAC-2026-12'), null);
   eq('nom de fichier', App.documents.fileName({ type: 'devis', number: 'D26100001', client: { name: 'Société Générale « Maroc »' } }), 'DEVIS_D26100001_Societe_Generale_Maroc.pdf');
 
+  // Tests multi-utilisateurs et persistance
+  if (App.supabaseClient) {
+    eq('supabase is configured', App.supabaseClient.isConfigured(), true);
+  }
+  if (App.auth) {
+    eq('auth default not admin', App.auth.isAdmin(), false);
+    eq('auth default is guest', App.auth.isGuest(), true);
+  }
+  if (App.store) {
+    eq('store default legal name', App.store.getSettings().company.legalName, 'ESCALAR MEDIA');
+    eq('store listDocs is array', Array.isArray(App.store.listDocs()), true);
+  }
+
   App.testResults = results;
 })(window.App);

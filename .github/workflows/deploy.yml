@@ -50,4 +50,5 @@ jobs:
             **/node_modules/**
             **/*.md
             **/.claude/**
+            **/supabase/**
             **/*.zip

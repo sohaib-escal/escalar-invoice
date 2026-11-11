@@ -3,8 +3,8 @@
  *  - Devis   : PRÉFIXE + AA + MM + JJ + séquence du jour sur 2 chiffres  (ex. D26102101)
  *  - Facture : PRÉFIXE + AA + MM + séquence du mois sur 3 chiffres      (ex. F2610001)
  * La période (jour ou mois) est celle de la date d'émission du document.
- * Le numéro n'est « consommé » qu'au premier enregistrement (jamais au simple affichage),
- * un numéro n'est jamais réattribué, et un numéro saisi à la main plus élevé fait avancer le compteur.
+ * En mode multi-utilisateur, l'attribution se fait de manière atomique via PostgreSQL
+ * (fonction allocate_number) pour éliminer tout risque de doublon concurrent.
  */
 (function (App) {
   'use strict';
@@ -65,13 +65,57 @@
     var settings = App.store.getSettings();
     var seq = lastUsed(type, isoDate) + 1;
     var number = format(type, isoDate, seq, settings);
-    // Saute les numéros déjà présents (saisie manuelle, import, autre onglet)
     var guard = 0;
     while (numberExists(number) && guard++ < 10000) {
       seq++;
       number = format(type, isoDate, seq, settings);
     }
     return number;
+  }
+
+  /**
+   * Aperçu asynchrone vérifiant aussi la base de données Supabase
+   */
+  async function peekAsync(type, isoDate) {
+    var sb = App.supabaseClient ? App.supabaseClient.getClient() : null;
+    if (sb && App.auth && App.auth.isAuthenticated()) {
+      try {
+        var { data, error } = await sb.rpc('peek_next_number', {
+          p_type: type,
+          p_issue_date: isoDate
+        });
+        if (!error && data) return data;
+      } catch (e) {
+        console.warn('peekAsync RPC échoué, fallback peek local:', e);
+      }
+    }
+    return peek(type, isoDate);
+  }
+
+  /**
+   * Attribution atomique en base de données PostgreSQL (anti-doublon concurrent)
+   */
+  async function allocateAtomic(type, isoDate) {
+    var sb = App.supabaseClient ? App.supabaseClient.getClient() : null;
+    if (sb && App.auth && App.auth.isAuthenticated()) {
+      try {
+        var { data, error } = await sb.rpc('allocate_number', {
+          p_type: type,
+          p_issue_date: isoDate
+        });
+        if (!error && data) {
+          commit(type, data);
+          return data;
+        }
+      } catch (e) {
+        console.error('Erreur allocate_number RPC:', e);
+      }
+    }
+
+    // Fallback local si non connecté ou en mode déconnecté
+    var num = peek(type, isoDate);
+    commit(type, num);
+    return num;
   }
 
   /** Enregistre l'utilisation d'un numéro : le compteur de sa période ne fait qu'augmenter. */
@@ -83,14 +127,33 @@
     if ((counters[key] || 0) < parsed.seq) {
       counters[key] = parsed.seq;
       App.store.saveCounters(counters);
+
+      var sb = App.supabaseClient ? App.supabaseClient.getClient() : null;
+      if (sb && App.auth && App.auth.isAuthenticated()) {
+        sb.from('numbering_counters').upsert({
+          counter_key: key,
+          last_used: parsed.seq,
+          updated_at: new Date().toISOString()
+        }).then(null, function () {});
+      }
     }
   }
 
   /** Fixe manuellement le prochain numéro de la période de `isoDate` (Paramètres). */
   function setNext(type, isoDate, nextSeq) {
     var counters = App.store.getCounters();
-    counters[counterKey(type, isoDate)] = Math.max(0, Math.floor(nextSeq) - 1);
+    var key = counterKey(type, isoDate);
+    counters[key] = Math.max(0, Math.floor(nextSeq) - 1);
     App.store.saveCounters(counters);
+
+    var sb = App.supabaseClient ? App.supabaseClient.getClient() : null;
+    if (sb && App.auth && App.auth.isAdmin()) {
+      sb.from('numbering_counters').upsert({
+        counter_key: key,
+        last_used: counters[key],
+        updated_at: new Date().toISOString()
+      }).then(null, function () {});
+    }
   }
 
   App.numbering = {
@@ -98,9 +161,11 @@
     format: format,
     parse: parse,
     peek: peek,
+    peekAsync: peekAsync,
+    allocateAtomic: allocateAtomic,
     commit: commit,
     lastUsed: lastUsed,
     setNext: setNext,
     numberExists: numberExists
   };
-})(window.App = window.App || {});
+})(typeof window !== 'undefined' ? (window.App = window.App || {}) : (typeof global !== 'undefined' ? (global.window = global.window || {}, global.window.App = global.window.App || {}) : {}));

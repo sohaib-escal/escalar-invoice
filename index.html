@@ -20,13 +20,15 @@
   <div id="toasts" aria-live="polite"></div>
   <input type="file" id="import-file" accept="application/json,.json" hidden>
 
-  <!-- Bibliothèque PDF (locale) et ressources embarquées -->
+  <!-- Bibliothèque Supabase & PDF (locale) et ressources embarquées -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="js/lib/jspdf.umd.min.js"></script>
   <script src="js/assets/fonts.js"></script>
   <script src="js/assets/logo.js"></script>
   <script src="js/assets/stamp.js"></script>
 
-  <!-- Logique (sans DOM) -->
+  <!-- Client Supabase & Logique (sans DOM) -->
+  <script src="js/supabase-client.js"></script>
   <script src="js/util.js"></script>
   <script src="js/calc.js"></script>
   <script src="js/words.js"></script>
@@ -45,6 +47,7 @@
   <script src="js/auth.js"></script>
   <script src="js/ui.js"></script>
   <script src="js/backup.js"></script>
+  <script src="js/admin.js"></script>
   <script src="js/dashboard.js"></script>
   <script src="js/editor.js"></script>
   <script src="js/settings.js"></script>
